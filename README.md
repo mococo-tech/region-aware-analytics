@@ -84,7 +84,13 @@ function recordPage() {
 
 let wasPermitted = false;
 const unsubscribe = consent.subscribe((state) => {
-  analytics.setEnabled(state.permitted);
+  analytics.setEnabled(state.permitted, {
+    // Keep a returning visitor's cookie while region lookup is still pending.
+    clearCookies:
+      state.privacyBlocked ||
+      state.choice === "denied" ||
+      (state.resolved && !state.permitted),
+  });
   if (state.permitted && !wasPermitted) recordPage();
   wasPermitted = state.permitted;
 
