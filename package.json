@@ -1,0 +1,54 @@
+{
+  "name": "region-aware-analytics",
+  "version": "0.1.0",
+  "description": "Independent region policy, browser preferences, and opt-in GA4 loading.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mococo-tech/region-aware-analytics.git"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src",
+    "examples",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js"
+    },
+    "./ga4": {
+      "types": "./dist/ga4.d.ts",
+      "import": "./dist/ga4.js"
+    },
+    "./adapters/cloudfront": {
+      "types": "./dist/adapters/cloudfront.d.ts",
+      "import": "./dist/adapters/cloudfront.js"
+    },
+    "./adapters/cloudflare": {
+      "types": "./dist/adapters/cloudflare.d.ts",
+      "import": "./dist/adapters/cloudflare.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "prettier": "3.8.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
