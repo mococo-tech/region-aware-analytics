@@ -1,6 +1,6 @@
 {
   "name": "region-aware-analytics",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Independent region policy, browser preferences, and opt-in GA4 loading.",
   "type": "module",
   "license": "MIT",
@@ -14,6 +14,7 @@
     "src",
     "examples",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "exports": {

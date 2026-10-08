@@ -4,13 +4,15 @@ export type Choice = "granted" | "denied";
 export interface RegionRules {
     noticeOnly: readonly string[];
     consentRequired: readonly string[];
+    /** Explicit application policy for recognized countries absent from both lists. */
+    knownCountryFallback?: "notice-only" | "consent-required";
 }
 export interface ChoiceRecord {
     version: 1;
     choice: Choice;
     expiresAt: number;
 }
-/** The caller supplies reviewed rules; no country is enabled by default. */
+/** Explicit lists precede an optional fallback; unknown geography stays blocked. */
 export declare function classifyCountry(country: unknown, rules: RegionRules): RegionPolicy;
 /** Invalid, expired, or implausibly long-lived choices never imply consent. */
 export declare function readChoice(raw: string | null, now: number, ttlMs: number): Choice | null;

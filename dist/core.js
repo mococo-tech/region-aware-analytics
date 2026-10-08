@@ -4,7 +4,7 @@ const countryCodes = new Set(("AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ B
     "KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ " +
     "NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ " +
     "TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW").split(" "));
-/** The caller supplies reviewed rules; no country is enabled by default. */
+/** Explicit lists precede an optional fallback; unknown geography stays blocked. */
 export function classifyCountry(country, rules) {
     if (typeof country !== "string")
         return "unknown";
@@ -17,6 +17,9 @@ export function classifyCountry(country, rules) {
         return "consent-required";
     if (rules.noticeOnly.some(matches))
         return "notice-only";
+    if (rules.knownCountryFallback === "notice-only" ||
+        rules.knownCountryFallback === "consent-required")
+        return rules.knownCountryFallback;
     return "unavailable";
 }
 function validTimeRange(now, ttlMs) {

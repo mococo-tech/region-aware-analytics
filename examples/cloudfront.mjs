@@ -12,6 +12,10 @@ import { classifyCloudFrontRequest } from "region-aware-analytics/adapters/cloud
  * Configure the /analytics-region behavior to forward the generated country
  * header and disable caching. A no-store response alone does not override a
  * CloudFront cache policy with a positive minimum TTL.
+ *
+ * rules may include knownCountryFallback: "notice-only" or "consent-required"
+ * after your own policy review. Omitting it keeps unmatched countries blocked.
+ * A fallback never overrides explicit consent rules or unknown/untrusted input.
  */
 export function createRegionHandler({
   rules = { noticeOnly: [], consentRequired: [] },

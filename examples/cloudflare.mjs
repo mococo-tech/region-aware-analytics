@@ -5,6 +5,9 @@ import { classifyCloudflareCountry } from "region-aware-analytics/adapters/cloud
  * Read only Cloudflare's platform-provided request.cf.country; do not replace
  * it with CF-IPCountry or another client-supplied header on a public origin.
  * Do not cache this endpoint in Cloudflare Cache Rules or a service worker.
+ * rules accepts the same optional knownCountryFallback as the core module.
+ * Set it only as an explicit reviewed policy; the empty default stays closed.
+ * Invalid or missing request.cf.country remains unknown regardless of fallback.
  */
 export function createRegionWorker({
   rules = { noticeOnly: [], consentRequired: [] },

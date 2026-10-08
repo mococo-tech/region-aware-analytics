@@ -2,7 +2,8 @@
 
 Small TypeScript modules for region-aware analytics choices, trusted edge country classification, and optional Google Analytics 4 collection. Bring your own regional policy and interface; the package includes no legal country list, consent banner, or automatic overlay.
 
-- Do not load analytics while the region is unresolved, unreviewed, or unavailable.
+- Keep analytics blocked while the region is unresolved, unknown, or unavailable.
+- Apply explicit country lists, with an optional application-chosen fallback for other recognized countries.
 - Remember explicit allow/deny choices for a caller-defined duration.
 - Respect browser Global Privacy Control and Do Not Track signals.
 - Keep URL queries, fragments, and external referrer paths out of GA4 page fields.
@@ -32,14 +33,42 @@ const permitted = canMeasure(region, savedChoice, browserPrivacyBlocked);
 
 Country values are ISO 3166-1 alpha-2 codes. Matching ignores case and surrounding spaces. If a country appears in both lists, `consent-required` takes precedence.
 
-| Region             | Meaning                                                | Measurement without a saved choice      |
-| ------------------ | ------------------------------------------------------ | --------------------------------------- |
-| `notice-only`      | Caller has approved default collection for this region | Allowed                                 |
-| `consent-required` | Caller requires an explicit allow choice first         | Blocked                                 |
-| `unavailable`      | Recognized country absent from both reviewed lists     | Blocked, even with a saved allow choice |
-| `unknown`          | Missing, invalid, or unresolved country information    | Blocked, even with a saved allow choice |
+Version 0.2 adds an optional fallback for recognized countries outside both lists:
+
+```ts
+import type { RegionRules } from "region-aware-analytics";
+
+// Supply reviewed lists from your application's configuration.
+// This configuration enables default collection for recognized countries
+// except those explicitly requiring an allow choice for your use.
+function createRules(
+  reviewedNoticeOnlyCountries: readonly string[],
+  reviewedConsentRequiredCountries: readonly string[],
+): RegionRules {
+  return {
+    noticeOnly: reviewedNoticeOnlyCountries,
+    consentRequired: reviewedConsentRequiredCountries,
+    knownCountryFallback: "notice-only",
+  };
+}
+```
+
+Alternatively, use `knownCountryFallback: "consent-required"` to require an allow choice in other recognized countries. Omit the option to retain the previous closed-list behavior: unmatched recognized countries remain `unavailable`. Invalid runtime fallback values also produce `unavailable` for unmatched countries. The fallback accepts exactly the two strings shown; it does not normalize them.
+
+Classification order is: validate the country, check `consentRequired`, check `noticeOnly`, then apply a valid fallback. Missing or invalid country information always remains `unknown`, even with a fallback or a saved allow choice. Both edge adapters use this same order and preserve their trust requirements.
+
+| Region             | Meaning                                                            | Measurement without a saved choice      |
+| ------------------ | ------------------------------------------------------------------ | --------------------------------------- |
+| `notice-only`      | Caller has approved default collection for this region             | Allowed                                 |
+| `consent-required` | Caller requires an explicit allow choice first                     | Blocked                                 |
+| `unavailable`      | Recognized country without a matching list entry or valid fallback | Blocked, even with a saved allow choice |
+| `unknown`          | Missing, invalid, or unresolved country information                | Blocked, even with a saved allow choice |
 
 A deny choice or browser privacy signal blocks collection in every region. These names express application behavior, not legal conclusions. Country alone does not establish the law that applies: your organization, audience, purposes, provider settings, and transfers also matter. Review and maintain your own policy, disclosures, and any required consent records.
+
+In particular, choosing default collection for all recognized countries is an explicit application decision, **not a guarantee that those countries exempt your analytics from consent**. The package supplies no legal defaults or country-specific legal recommendations. A country not listed in `consentRequired` does not establish that consent is unnecessary.
+
+Existing configurations need no migration: omitting `knownCountryFallback` preserves version 0.1 behavior. Browser choice records remain version 1; this option does not change their expiry, storage, or denial precedence.
 
 ## Browser integration
 
@@ -115,6 +144,10 @@ await consent.start();
 
 `renderAnalyticsSettings` represents your UI code; it is not a package export. No interface is injected. Provide clear purpose/provider information, accessible allow and deny controls, and an easy way to change a choice later. An in-flow notice and a privacy/settings section can share the same controller.
 
+Keep four responsibilities separate: the server classifies regions, the controller remembers choices and privacy signals, the provider sends permitted events, and your application presents information and controls. For `notice-only`, a persistent footer/settings entry can offer an optional stop control; if immediate notice is required for your collection, display it before loading analytics. For `consent-required`, show your allow/deny prompt only when `state.shouldAsk` is true. A prompt need not block the rest of the page. Closing an informational notice is a display preference, not a reason to call `consent.choose("granted")`. Unknown geography must stay unmeasured and must not be presented as something an allow button can override.
+
+Your footer control can reopen the same banner or settings interface. Keep this manual open state independent of `state.shouldAsk`, which controls the automatic prompt. Opening or closing the interface must not change a choice; call `choose` only for an explicit allow or deny action. Neither a manual allow action nor a saved grant can override an unknown/unavailable region or a browser privacy block.
+
 For SPA navigation, call `analytics.setEnabled(false, { clearCookies: false })` before changing the page, then restore permission from `consent.getState().permitted` and call `recordPage()` once after the route's canonical URL and title are ready. This temporary pause keeps the existing analytics cookie; withdrawing consent should use the default `setEnabled(false)`, which clears cookies. Do not also enable automatic history page views or call `recordPage()` again for hash-only changes. The provider does not infer your router's lifecycle.
 
 If a path or title can contain personal information, substitute a fixed public route/title or skip that view; query removal alone cannot sanitize them. Same-origin referrers retain their path after query/fragment removal; external referrers retain only their origin. Pass an empty referrer when its path is unsuitable for collection.
@@ -133,7 +166,7 @@ All modules are ESM; browser globals are used by the browser/provider integratio
 
 **Core**
 
-- `classifyCountry(country, rules)`: returns one of the four region classifications above. `RegionRules` contains `noticeOnly` and `consentRequired` arrays.
+- `classifyCountry(country, rules)`: returns one of the four region classifications above. `RegionRules` contains `noticeOnly` and `consentRequired` arrays, plus optional `knownCountryFallback: "notice-only" | "consent-required"`.
 - `readChoice(raw, now, ttlMs)`: validates serialized version-1 choice data; returns `"granted"`, `"denied"`, or `null`. Corrupt, expired, or implausibly long-lived records are ignored.
 - `makeChoiceRecord(choice, now, ttlMs)`: produces `{ version: 1, choice, expiresAt }` for JSON serialization. Invalid choices/times throw.
 - `canMeasure(region, choice, privacyBlocked?)`: applies the permission table above.
@@ -174,6 +207,8 @@ Initialize this integration once per application and only on reviewed public pro
 
 Both examples start closed, accept only `GET`, and return `Cache-Control: private, no-store, max-age=0`. Disable CDN caching for the endpoint as well; never share one visitor's regional result with another. Preserve this rule in service workers. Do not put country results in a globally cached HTML response unless your cache varies correctly by region.
 
+Pass the same reviewed `rules` object, including `knownCountryFallback` when intentionally enabled, to either example factory. A fallback never makes a preview host, untrusted proxy, missing platform country, or viewer-supplied country header trustworthy.
+
 The library does not collect or geolocate IP addresses, persist country codes, or send them to the browser. Your CDN still processes the request and may log network metadata; your analytics provider also has its own collection behavior. IP-derived country is approximate and can change with a VPN or travel.
 
 ## GA4 configuration and withdrawal limits
@@ -187,9 +222,13 @@ This provider uses basic blocking: it does not intentionally load the tag or sen
 ```sh
 npm install
 npm test
+npm run format:check
+npm pack --dry-run
 ```
 
 `npm test` builds the package before running tests; `npm run build` is also available on its own. Commit regenerated `dist/` when changing source so pinned GitHub installations stay usable. CI checks formatting, tests, and whether the build output matches the committed files.
+
+See [CHANGELOG.md](CHANGELOG.md) for compatibility and release changes.
 
 ## License
 

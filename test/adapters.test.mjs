@@ -124,3 +124,56 @@ test("the Cloudflare adapter takes only platform country data, not public header
     assert.equal(classifyCloudflareCountry(value, rules), "unknown");
   }
 });
+
+test("both trusted adapters apply the same fallback and explicit-list precedence", () => {
+  for (const fallback of ["notice-only", "consent-required"]) {
+    const policy = {
+      noticeOnly: ["JP", "DE"],
+      consentRequired: ["DE"],
+      knownCountryFallback: fallback,
+    };
+    for (const [country, expected] of [
+      ["JP", "notice-only"],
+      ["DE", "consent-required"],
+      ["NZ", fallback],
+      ["XX", "unknown"],
+      [undefined, "unknown"],
+    ]) {
+      assert.equal(classifyCloudflareCountry(country, policy), expected);
+      assert.equal(
+        classifyCloudFrontRequest(
+          request({
+            host: "example.com",
+            "cloudfront-viewer-country": country,
+          }),
+          policy,
+          trusted,
+        ),
+        expected,
+      );
+    }
+  }
+});
+
+test("a permissive fallback never relaxes CloudFront origin or header trust", () => {
+  const policy = { ...rules, knownCountryFallback: "notice-only" };
+  for (const headers of [
+    { host: "preview.example.com", "cloudfront-viewer-country": "NZ" },
+    { host: "example.com", "cf-ipcountry": "NZ", "accept-language": "en-NZ" },
+    { host: "example.com", "cloudfront-viewer-country": ["NZ", "DE"] },
+    { host: "example.com", "cloudfront-viewer-country": "NZ, DE" },
+  ]) {
+    assert.equal(
+      classifyCloudFrontRequest(request(headers), policy, trusted),
+      "unknown",
+    );
+  }
+  assert.equal(
+    classifyCloudFrontRequest(
+      request({ host: "example.com", "cloudfront-viewer-country": "NZ" }),
+      policy,
+      { ...trusted, trustedProxy: false },
+    ),
+    "unknown",
+  );
+});

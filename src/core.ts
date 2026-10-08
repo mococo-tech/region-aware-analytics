@@ -10,6 +10,8 @@ export type Choice = "granted" | "denied";
 export interface RegionRules {
   noticeOnly: readonly string[];
   consentRequired: readonly string[];
+  /** Explicit application policy for recognized countries absent from both lists. */
+  knownCountryFallback?: "notice-only" | "consent-required";
 }
 
 export interface ChoiceRecord {
@@ -29,7 +31,7 @@ const countryCodes = new Set(
   ).split(" "),
 );
 
-/** The caller supplies reviewed rules; no country is enabled by default. */
+/** Explicit lists precede an optional fallback; unknown geography stays blocked. */
 export function classifyCountry(
   country: unknown,
   rules: RegionRules,
@@ -41,6 +43,11 @@ export function classifyCountry(
   // A duplicate in both lists never allows a consent-required visitor by default.
   if (rules.consentRequired.some(matches)) return "consent-required";
   if (rules.noticeOnly.some(matches)) return "notice-only";
+  if (
+    rules.knownCountryFallback === "notice-only" ||
+    rules.knownCountryFallback === "consent-required"
+  )
+    return rules.knownCountryFallback;
   return "unavailable";
 }
 

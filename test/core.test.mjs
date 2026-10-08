@@ -43,6 +43,72 @@ test("overlapping region rules cannot bypass consent", () => {
   );
 });
 
+test("an explicit known-country fallback covers only countries outside the lists", () => {
+  for (const fallback of ["notice-only", "consent-required"]) {
+    const policy = { ...rules, knownCountryFallback: fallback };
+    assert.equal(classifyCountry(" nz ", policy), fallback);
+    assert.equal(classifyCountry("JP", policy), "notice-only");
+    assert.equal(classifyCountry("DE", policy), "consent-required");
+    assert.equal(
+      classifyCountry("DE", { ...policy, noticeOnly: ["DE"] }),
+      "consent-required",
+    );
+    assert.equal(
+      classifyCountry("NZ", {
+        noticeOnly: [],
+        consentRequired: [],
+        knownCountryFallback: fallback,
+      }),
+      fallback,
+    );
+  }
+});
+
+test("missing or invalid fallbacks retain the existing unavailable result", () => {
+  for (const fallback of [
+    undefined,
+    null,
+    "unknown",
+    "unavailable",
+    "NOTICE-ONLY",
+    " notice-only ",
+    true,
+    {},
+    ["notice-only"],
+  ]) {
+    const policy = { ...rules, knownCountryFallback: fallback };
+    assert.equal(classifyCountry("NZ", policy), "unavailable");
+    assert.equal(classifyCountry("JP", policy), "notice-only");
+    assert.equal(classifyCountry("DE", policy), "consent-required");
+  }
+});
+
+test("even permissive fallback and a stored grant never enable unknown geography", () => {
+  const policy = {
+    noticeOnly: ["XX"],
+    consentRequired: [],
+    knownCountryFallback: "notice-only",
+  };
+  for (const value of [
+    null,
+    undefined,
+    "",
+    "XX",
+    "EU",
+    "JP, DE",
+    "Japan",
+    {},
+  ]) {
+    const region = classifyCountry(value, policy);
+    assert.equal(region, "unknown");
+    assert.equal(canMeasure(region, "granted"), false);
+  }
+  const recognized = classifyCountry("NZ", policy);
+  assert.equal(canMeasure(recognized, null), true);
+  assert.equal(canMeasure(recognized, "denied"), false);
+  assert.equal(canMeasure(recognized, "granted", true), false);
+});
+
 test("saved consent cannot override a failed or unavailable region decision", () => {
   for (const region of ["unknown", "unavailable", "unexpected"]) {
     for (const choice of ["granted", "denied", null]) {
